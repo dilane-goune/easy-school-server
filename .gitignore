@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+/trash
+/static/registrations
+
+# testing
+/coverage
+test.*
+.env
+
+# production
+/build
+/private
+/assets/keys
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+test.*
