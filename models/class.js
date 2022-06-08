@@ -6,6 +6,7 @@ const classSchema = new mongoose.Schema(
         level: { type: String, required: true },
         specialization: { type: String, required: true },
         classMasterId: { type: mongoose.Types.ObjectId, trim: true },
+        isOnline: { type: Boolean, default: false },
         courses: [
             {
                 courseCode: { type: String, required: true },
@@ -16,12 +17,6 @@ const classSchema = new mongoose.Schema(
                     practices: Number,
                     exercises: Number,
                 },
-                sessions: [
-                    {
-                        date: { type: Date, required: true },
-                        duration: { type: Number, required: true },
-                    },
-                ],
             },
         ],
     },

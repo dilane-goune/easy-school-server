@@ -1,48 +1,15 @@
-const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const nodemailer = require("nodemailer");
 const { unlinkSync } = require("fs");
 const path = require("path");
+const countries = require("../assets/countriesObject.json");
 
 // models
-const adminModel = require("../models/admin");
 const courseModel = require("../models/course");
 const specialisationModel = require("../models/specialisation");
 const classModel = require("../models/class");
 const userModel = require("../models/user");
 const registrationsModel = require("../models/registrations");
-
-module.exports.login = async (req, res) => {
-    let token;
-    adminModel
-        .findOne({ userName: req.body.userName })
-        .then((doc) => {
-            if (doc?._id) {
-                if (doc.password === req.body.password) {
-                    try {
-                        token = jwt.sign(
-                            { _id: doc._id.toString() },
-                            process.env.SECRET_KEY,
-                            {
-                                expiresIn: "1h",
-                            }
-                        );
-
-                        res.status(200).json({ user: doc, token });
-                    } catch (e) {
-                        console.log(e);
-                        res.sendStatus(500);
-                    }
-                } else {
-                    res.sendStatus(401);
-                }
-            } else res.sendStatus(404);
-        })
-        .catch((e) => {
-            console.log(e);
-            res.sendStatus(500);
-        });
-};
 
 module.exports.newCourse = (req, res) => {
     courseModel
@@ -52,6 +19,21 @@ module.exports.newCourse = (req, res) => {
         })
         .catch((e) => {
             if (e.code === 11000) return res.sendStatus(409);
+            console.log(e);
+            res.sendStatus(500);
+        });
+};
+
+module.exports.updateCourse = (req, res) => {
+    courseModel
+        .findOneAndUpdate(
+            { courseCode: req.body.courseCode },
+            { $set: { ...req.body } }
+        )
+        .then(() => {
+            res.sendStatus(200);
+        })
+        .catch((e) => {
             console.log(e);
             res.sendStatus(500);
         });
@@ -71,6 +53,7 @@ module.exports.getCourses = (req, res) => {
 
 // classes
 module.exports.newClass = (req, res) => {
+    delete req.body._id;
     let classId;
     classModel
         .create(req.body)
@@ -115,15 +98,13 @@ module.exports.newClass = (req, res) => {
 
 module.exports.updateClass = async (req, res) => {
     try {
-        const oldCourses =
-            (
-                await classModel.findOne(
-                    { _id: req.params.classId },
-                    { courses: { courseCode: 1, teacherId: 1 } }
-                )
-            )?.courses || [];
+        const oldClass = await classModel.findOne(
+            { _id: req.params.classId },
+            { courses: { courseCode: 1, teacherId: 1 }, classMasterId: 1 }
+        );
+        const oldCourses = oldClass?.courses || [];
 
-        const newCourses = req.body;
+        const newCourses = req.body.courses;
 
         const oldTeachersUpdatePromises = oldCourses.map(
             async (oldC) =>
@@ -155,14 +136,22 @@ module.exports.updateClass = async (req, res) => {
 
         await classModel.updateOne(
             { _id: req.params.classId },
-            {
-                $set: {
-                    courses: newCourses,
-                },
-            }
+            { $set: { ...req.body } }
         );
         await Promise.all(oldTeachersUpdatePromises);
         await Promise.all(newTeachersUpdatePromises);
+
+        await userModel
+            .findOneAndUpdate(
+                { _id: oldClass.classMasterId },
+                { $set: { classId: null } }
+            )
+            .then(() =>
+                userModel.findOneAndUpdate(
+                    { _id: req.body.classMasterId },
+                    { $set: { classId: req.body.classMasterId } }
+                )
+            );
 
         res.sendStatus(200);
     } catch (e) {
@@ -190,7 +179,7 @@ module.exports.getClasses = (req, res) => {
             data.courses = docs;
             return userModel.find(
                 { isTeacher: true },
-                { name: 1, surName: 1, specialization: 1 }
+                { name: 1, surName: 1, specialization: 1, classId: 1 }
             );
         })
         .then((docs) => {
@@ -206,7 +195,12 @@ module.exports.getClasses = (req, res) => {
 // teacher
 module.exports.newTeacher = (req, res) => {
     userModel
-        .create({ ...req.body, isTeacher: true, password: "passw0rd" })
+        .create({
+            ...req.body,
+            isTeacher: true,
+            password: "passw0rd",
+            country: countries[req.body.countryCode],
+        })
         .then((doc) => {
             res.status(201).json({ _id: doc._id, createdAt: doc.createdAt });
         })
@@ -226,7 +220,7 @@ module.exports.getTeachers = (req, res) => {
         dateOfBirth: 1,
         country: 1,
         telephone: 1,
-        lastSeen: 1,
+        lastLogin: 1,
         pp: 1,
         createdAt: 1,
         specialization: 1,
@@ -283,32 +277,22 @@ module.exports.rejectStudent = (req, res) => {
     let student;
 
     registrationsModel
-        .findOne(
-            { _id: req.params.id },
-            {
-                name: 1,
-                surName: 1,
-                email: 1,
-                IDCardFile: 1,
-                certificateFile: 1,
-            }
-        )
-
+        .findOne({ _id: req.params.id })
         .then((doc) => {
             if (!doc) throw 404;
 
-            student = doc;
+            student = doc._doc;
 
             const transporter = nodemailer.createTransport({
-                service: process.env.EMAIL_SERVICE,
+                service: process.env.ES_EMAIL_SERVICE,
                 auth: {
-                    user: process.env.EMAIL_ACCOUNT,
-                    pass: process.env.EMAIL_PASSWORD,
+                    user: process.env.ES_EMAIL_ACCOUNT,
+                    pass: process.env.ES_EMAIL_PASSWORD,
                 },
             });
 
             return transporter.sendMail({
-                from: process.env.EMAIL_ACCOUNT,
+                from: process.env.ES_EMAIL_ACCOUNT,
                 to: doc.email,
                 subject: "Easy School Registration",
 
@@ -361,6 +345,14 @@ module.exports.rejectStudent = (req, res) => {
         })
         .catch((e) => {
             console.log(e);
+            registrationsModel.findOneAndUpdate(
+                { email: student.email },
+                {
+                    $set: student,
+                },
+                { upsert: true }
+            );
+
             if (e === 404) return res.sendStatus(404);
             if (e === 400) return res.sendStatus(400);
             res.sendStatus(500);
@@ -370,42 +362,27 @@ module.exports.rejectStudent = (req, res) => {
 module.exports.confirmStudent = (req, res) => {
     const { studentId } = req.params;
 
-    let student = {};
+    let student;
 
     registrationsModel
         .findOne({ _id: studentId })
         .then((doc) => {
-            if (!doc?._id) throw 404;
+            if (!doc) throw 404;
 
-            student = {
-                email: doc.email,
-                password: doc.password,
-                telephone: doc.telephone,
-                name: doc.name,
-                surName: doc.surName,
-                gender: doc.gender,
-                dateOfBirth: doc.dateOfBirth,
-                country: doc.country,
-                classId: doc.classId,
-                specialization: doc.specialization,
-                IDCardFile: doc.IDCardFile,
-                certificateFile: doc.certificateFile,
-            };
-
+            student = doc._doc;
             return userModel.create(student);
         })
-        .then((doc) => {
-            student._id = doc._id;
+        .then(() => {
             const transporter = nodemailer.createTransport({
-                service: process.env.EMAIL_SERVICE,
+                service: process.env.ES_EMAIL_SERVICE,
                 auth: {
-                    user: process.env.EMAIL_ACCOUNT,
-                    pass: process.env.EMAIL_PASSWORD,
+                    user: process.env.ES_EMAIL_ACCOUNT,
+                    pass: process.env.ES_EMAIL_PASSWORD,
                 },
             });
             // TODO: put the right domain
             return transporter.sendMail({
-                from: process.env.EMAIL_ACCOUNT,
+                from: process.env.ES_EMAIL_ACCOUNT,
                 to: student.email,
                 subject: "Easy School Registration",
 
@@ -425,7 +402,7 @@ module.exports.confirmStudent = (req, res) => {
                     </p>
                     <p>
                         Complete your registration  
-                        <a href="${process.env.DOMAIN}/finish-registration/${
+                        <a href="${process.env.ES_DOMAIN}/finish-registration/${
                     student._id
                 }" target="_blank">here</a>. 
                     </p>
@@ -438,7 +415,7 @@ module.exports.confirmStudent = (req, res) => {
                 <span>
                     For any issue, visit the easy school
                     <a href="${
-                        process.env.DOMAIN
+                        process.env.ES_DOMAIN
                     }/help" target="_blank">help page</a>.
                 </span>
                 <br />
@@ -470,47 +447,50 @@ module.exports.confirmStudent = (req, res) => {
             res.sendStatus(201);
         })
         .catch((e) => {
+            userModel.findOneAndDelete({ email: student.email }).then(() =>
+                registrationsModel.findOneAndUpdate(
+                    { email: student.email },
+                    {
+                        $set: student,
+                    },
+                    { upsert: true }
+                )
+            );
             console.log(e);
             if (e === 404) return res.sendStatus(404);
             res.sendStatus(500);
         });
 };
 
-module.exports.extendToken = (req, res) => {
-    const authorization =
-        req.headers.authorization ||
-        req.body.authorization ||
-        req.params.authorization;
-    if (!authorization) return res.sendStatus(401);
-    const { password, userName } = req.body;
+// specialiazation
+module.exports.getSpecializations = (req, res) => {
+    specialisationModel
+        .find()
+        .then((docs) => res.json(docs))
+        .catch((e) => {
+            console.log(e);
+            res.sendStatus(500);
+        });
+};
 
-    const token = authorization.split(" ")[1];
+module.exports.newSpecialization = (req, res) => {
+    specialisationModel
+        .create(req.body)
+        .then((doc) => res.status(201).json(doc))
+        .catch((e) => {
+            if (e.code === 11000) return res.sendStatus(409);
+            console.log(e);
+            res.sendStatus(500);
+        });
+};
 
-    if (!token || !password || !userName) return res.sendStatus(401);
-
-    jwt.verify(token, process.env.SECRET_KEY, (error) => {
-        if (error) {
-            if (error.message == "jwt expired") {
-                adminModel
-                    .findOne({ userName, password })
-                    .then((doc) => {
-                        if (!doc?._id) return res.sendStatus(401);
-                        let newToken = jwt.sign(
-                            { _id: doc._id.toString() },
-                            process.env.SECRET_KEY,
-                            {
-                                expiresIn: "1h",
-                            }
-                        );
-                        res.json(newToken);
-                    })
-                    .catch((e) => {
-                        console.log(e);
-                        res.sendStatus(500);
-                    });
-            } else return res.json(401);
-        } else {
-            return res.sendStatus(401);
-        }
-    });
+module.exports.deleteSpecialization = (req, res) => {
+    console.log(req.params);
+    specialisationModel
+        .deleteOne({ _id: req.params.id })
+        .then(() => res.sendStatus(204))
+        .catch((e) => {
+            console.log(e);
+            res.sendStatus(500);
+        });
 };

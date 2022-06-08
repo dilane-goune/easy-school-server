@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
-const multer = require("multer");
 require("dotenv").config();
+require("./functions/socket.io");
+require("./functions/peerJs");
 
 // middlewares
-const studentAuth = require("./middlewares/studentAuth");
 const teacherAuth = require("./middlewares/teacherAuth");
 const userAuth = require("./middlewares/userAuth");
 const adminAuth = require("./middlewares/adminAuth");
@@ -17,15 +17,15 @@ const specialisationModel = require("./models/specialisation");
 
 const agenda = require("./functions/agenda");
 const { app } = require("./functions/express");
-const { registrationStorage } = require("./functions/multer");
+const multerStorage = require("./functions/multer");
 
 // port
-const API = process.env.API;
+const API = process.env.ES_API;
 
 // db connection
 try {
     mongoose.connect(
-        process.env.DATA_BASE || "mongodb://localhost/easy-school"
+        process.env.ES_DATA_BASE || "mongodb://localhost/easy-school"
     );
 } catch (e) {
     console.log("FAILED TO CONNECT TO DATABASE");
@@ -38,17 +38,23 @@ try {
     await agenda.start(); // Start Agenda instance
 })();
 
-const registrationsFileUploads = multer({ storage: registrationStorage });
-
 // user
 app.post(API + "/token/extend", userRoute.extendToken);
-
 app.post(API + "/login", userRoute.login);
+app.get(API + "/profile-data", userRoute.getProfileData);
+
+app.post(
+    API + "/user/profile-pictures",
+    userAuth,
+    multerStorage.profilePictures.single("pp"),
+    userRoute.updatePP
+);
+app.delete(API + "/user/profile-pictures", userAuth, userRoute.removePP);
 
 // registration
 app.post(
     API + "/registration",
-    registrationsFileUploads.fields([
+    multerStorage.registrations.fields([
         { name: "IDCardFile", maxCount: 1 },
         { name: "certificateFile", maxCount: 1 },
     ]),
@@ -62,7 +68,7 @@ app.get(
 );
 
 // courses
-app.get(API + "/courses/:classId/", studentAuth, userRoute.getStudentCourses);
+app.get(API + "/courses/:classId/", userAuth, userRoute.getStudentCourses);
 app.get(API + "/courses/", teacherAuth, userRoute.getTeacherCourses);
 
 app.get(
@@ -81,8 +87,9 @@ app.get(
 app.get(API + "/exams", userAuth, userRoute.getExams);
 app.post(API + "/exams", teacherAuth, userRoute.newExam);
 
-app.get(API + "/exams/write/:examId", studentAuth, userRoute.getFullExam);
-app.post(API + "/exams/write/", studentAuth, userRoute.submitExam);
+app.get(API + "/exams/write/:examId", userAuth, userRoute.getFullExam);
+app.post(API + "/exams/write/", userAuth, userRoute.submitExam);
+app.get(API + "/exams/result/:examId/", userAuth, userRoute.getExamsResult);
 
 // questions
 app.get(API + "/questions", teacherAuth, userRoute.getQuestions);
@@ -102,6 +109,15 @@ app.get(
 app.get(API + "/time-tables", userAuth, userRoute.getTimeTable);
 app.post(API + "/time-tables", teacherAuth, userRoute.newTimeTable);
 
+// documents
+app.post(
+    API + "/documents/:courseCode/:classId",
+    multerStorage.documents.array("files"),
+    teacherAuth,
+    userRoute.newCourseDoucument
+);
+app.delete(API + "/documents/:id", teacherAuth, userRoute.deleteDocument);
+
 // *
 
 app.get(API + "/specializations", (req, res) => {
@@ -114,9 +130,7 @@ app.get(API + "/specializations", (req, res) => {
 app.post(API + "/get-recovery-code", userRoute.getRecoveryCode);
 app.post(API + "/confirm-recovery-code", userRoute.confirmRecoveryCode);
 
-// admin
-app.post(API + "/admin/login", adminRoute.login);
-app.post(API + "/admin/token/extend", adminRoute.extendToken);
+// ADMIN
 
 // admin-classes
 app.get(API + "/admin/classes", adminAuth, adminRoute.getClasses);
@@ -127,8 +141,7 @@ app.put(API + "/admin/classes/:classId", adminAuth, adminRoute.updateClass);
 app.get(API + "/admin/teachers", adminAuth, adminRoute.getTeachers);
 app.post(API + "/admin/teachers", adminAuth, adminRoute.newTeacher);
 
-// admin-courses
-
+// admin-registrations
 app.get(API + "/admin/registrations", adminAuth, adminRoute.getRegitrations);
 app.get(
     API + "/admin/registrations/:id",
@@ -150,10 +163,28 @@ app.post(API + "/admin/initialize-academic-year", adminAuth, (req, res) =>
     res.sendStatus(200)
 );
 
+// admin-teachers
 app.get(API + "/admin", adminAuth, adminRoute.getTeachers);
 app.post(API + "/admin", adminAuth, adminRoute.newTeacher);
 
+// admin-courses
 app.get(API + "/admin/courses", adminAuth, adminRoute.getCourses);
 app.post(API + "/admin/courses", adminAuth, adminRoute.newCourse);
+app.put(API + "/admin/courses", adminAuth, adminRoute.updateCourse);
 
-// const test = app.get("/", (req, res) => res.send("hello time out"));
+// admin-specializations
+app.get(
+    API + "/admin/specializations",
+    adminAuth,
+    adminRoute.getSpecializations
+);
+app.post(
+    API + "/admin/specializations",
+    adminAuth,
+    adminRoute.newSpecialization
+);
+app.delete(
+    API + "/admin/specializations/:id",
+    adminAuth,
+    adminRoute.deleteSpecialization
+);

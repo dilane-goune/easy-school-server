@@ -61,16 +61,16 @@
 >
 > Your enviroment variables must contain the following :
 >
-> -   `SERVER_PORT` default `8888`.
-> -   `SERVER_ADDRESS` default `0.0.0.0` i.e all addresses.
+> -   `ES_SERVER_PORT` default `8888`.
+> -   `ES_SERVER_ADDRESS` default `0.0.0.0` i.e all addresses.
 > -   `API` must be `/api` for the front-end to work normally.
-> -   `DOMAIN` the main domain of **easy school**. default `http://localhost:3000`
-> -   `SECRET_KEY` a string use by JWT to encode tokens.
-> -   `EMAIL_ACCOUNT` the email account use to sent mails to users.
-> -   `EMAIL_PASSWORD` the email password.
-> -   `EMAIL_SERVICE` the email service provider. default is `gmail`.
-> -   `DATA_BASE` the url connection to the database. default is `mongodb://localhost/easy-school`
-> -   `PEM_KEYS` the absolute path to a folder containing a `cert.pem` and `key.pem` files. This is for HTTPS.
+> -   `ES_DOMAIN` the main domain of **easy school**. default `http://localhost:3000`
+> -   `ES_SECRET_KEY` a string use by JWT to encode tokens.
+> -   `ES_EMAIL_ACCOUNT` the email account use to sent mails to users.
+> -   `ES_EMAIL_PASSWORD` the email password.
+> -   `ES_EMAIL_SERVICE` the email service provider. default is `gmail`.
+> -   `ES_DATA_BASE` the url connection to the database. default is `mongodb://localhost/easy-school`
+> -   `ES_PEM_KEYS` the absolute path to a folder containing a `cert.pem` and `key.pem` files. This is for HTTPS.
 
 This is the back-end repository. [here](https://github.com/dilane-goune/easy-school) is the front-end.
 

@@ -5,7 +5,6 @@ const { emailRegEx } = require("../assets/regex");
 const registrationSchema = new mongoose.Schema(
     {
         email: { type: String, match: emailRegEx },
-        password: { type: String, trim: true },
         telephone: { type: String, trim: true },
         name: { type: String, required: true, trim: true },
         surName: { type: String, required: true, trim: true },

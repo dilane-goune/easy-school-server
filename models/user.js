@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
         lastLogin: { type: Date },
         lastSeen: { type: Date },
         isTeacher: { type: Boolean, default: false },
+        isAdmin: { type: Boolean, default: false },
         diplomat: { type: String },
 
         classId: { type: mongoose.Types.ObjectId },

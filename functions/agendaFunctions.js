@@ -2,7 +2,7 @@ const agenda = require("./agenda");
 const examModel = require("../models/exam");
 const dayjs = require("dayjs");
 const LocalizedFormat = require("dayjs/plugin/localizedFormat");
-const { io } = require("./express");
+const io = require("./socket.io");
 
 dayjs.extend(LocalizedFormat);
 

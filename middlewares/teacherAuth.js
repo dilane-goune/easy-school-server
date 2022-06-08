@@ -1,36 +1,25 @@
-const userModel = require("../models/user");
 const jwt = require("jsonwebtoken");
 
 module.exports = (req, res, next) => {
     const authorization =
         req.headers.authorization ||
         req.body.authorization ||
+        req.query.pem ||
         req.params.authorization;
     if (!authorization) return res.sendStatus(401);
     const token = authorization.split(" ")[1];
-    let userId;
+    let user;
 
     try {
-        userId = jwt.verify(token, process.env.SECRET_KEY)._id;
+        user = jwt.verify(token, process.env.ES_SECRET_KEY);
+        if (!user.isTeacher) return res.sendStatus(403);
+        req.user = user;
+        next();
     } catch (error) {
         console.log(error);
         if (error.message == "jwt expired") return res.sendStatus(403);
+        console.log("token to extend = " + token);
 
         return res.sendStatus(401);
     }
-
-    if (!userId) return res.sendStatus(401);
-
-    userModel
-        .findOne({ _id: userId, isTeacher: true }, { _id: 1 })
-        .then((doc) => {
-            if (!doc?._id) return res.sendStatus(401);
-            req.userId = doc?._id;
-            req.isTeacher = true;
-            return next();
-        })
-        .catch((e) => {
-            console.log(e);
-            res.sendStatus(500);
-        });
 };

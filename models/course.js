@@ -1,16 +1,11 @@
 const mongoose = require("mongoose");
 
-const colors = ["#ed6c02", "#ff9800", "#9c27b0", "#2e7d32", "#01579b"];
-
 const courseSchema = new mongoose.Schema(
     {
         name: { type: String, required: true },
         courseCode: { type: String, required: true },
         level: { type: String, required: true },
-        color: {
-            type: String,
-            default: colors[Math.round(Math.random() * 10) % colors.length],
-        },
+        color: { type: String, default: "#9c27b0" },
         chapters: [String],
     },
 
