@@ -18,8 +18,8 @@ module.exports.newCourse = (req, res) => {
             res.sendStatus(201);
         })
         .catch((e) => {
-            if (e.code === 11000) return res.sendStatus(409);
             console.log(e);
+            if (e.code === 11000) return res.sendStatus(409);
             res.sendStatus(500);
         });
 };
@@ -98,8 +98,9 @@ module.exports.newClass = (req, res) => {
 
 module.exports.updateClass = async (req, res) => {
     try {
+        const { classId } = req.params;
         const oldClass = await classModel.findOne(
-            { _id: req.params.classId },
+            { _id: classId },
             { courses: { courseCode: 1, teacherId: 1 }, classMasterId: 1 }
         );
         const oldCourses = oldClass?.courses || [];
@@ -111,9 +112,7 @@ module.exports.updateClass = async (req, res) => {
                 await userModel.updateOne(
                     { _id: oldC.teacherId },
                     {
-                        $pull: {
-                            courses: { classId: req.params.classId },
-                        },
+                        $pull: { courses: { classId } },
                     }
                 )
         );
@@ -134,10 +133,7 @@ module.exports.updateClass = async (req, res) => {
                 )
         );
 
-        await classModel.updateOne(
-            { _id: req.params.classId },
-            { $set: { ...req.body } }
-        );
+        await classModel.updateOne({ _id: classId }, { $set: req.body });
         await Promise.all(oldTeachersUpdatePromises);
         await Promise.all(newTeachersUpdatePromises);
 
@@ -146,12 +142,13 @@ module.exports.updateClass = async (req, res) => {
                 { _id: oldClass.classMasterId },
                 { $set: { classId: null } }
             )
-            .then(() =>
-                userModel.findOneAndUpdate(
+            .then((doc) => {
+                console.log(doc);
+                return userModel.findOneAndUpdate(
                     { _id: req.body.classMasterId },
-                    { $set: { classId: req.body.classMasterId } }
-                )
-            );
+                    { $set: { classId } }
+                );
+            });
 
         res.sendStatus(200);
     } catch (e) {

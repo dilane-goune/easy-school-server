@@ -1,7 +1,7 @@
 const { getNotifications } = require("./notifications");
 const userModel = require("../models/user");
 const { Server: IOServer } = require("socket.io");
-const { server } = require("./express");
+const { server, peerServer } = require("./express");
 const { v4: uuidv4 } = require("uuid");
 
 const io = new IOServer(server);
@@ -12,7 +12,6 @@ const onlineClassesNameSpace = {};
 
 io.on("connection", (socket) => {
     socket.on("user-login", (payload) => {
-        console.log(payload);
         if (payload.classId) {
             socket.join(payload.classId);
         }
@@ -105,18 +104,29 @@ class OnlineTeacher {
 
         this.socket.on("disconnect", this.disconnect);
         this.socket.on("message", (message, cb) => {
-            socket.broadcast.emit("new-message", message);
+            this.socket.broadcast.emit("new-message", message);
             cb(true);
+        });
+        this.socket.on("end-class", this.endClass);
+        peerServer.on("disconnect", (peerClient) => {
+            if (peerClient.getId() === this.peerId)
+                this.disconnect("loss peer");
         });
     }
 
     disconnect(reason) {
         delete onlineClassesNameSpace[this.userId];
         console.log("onlineClassesNameSpace : # disconnection => " + reason);
+        io.to(this.roomName).emit("teacher-disconnected");
+    }
+    endClass(cb) {
+        this.socket?.broadcast.emit("end-class");
+        delete onlineClassesNameSpace[this.userId];
+        cb(true);
     }
 
     callStudentToJoinClass(userId, peerId, userName, pp, socket, callBack) {
-        this.socket.emit("join-request", { peerId, userName }, (ok) => {
+        this.socket?.emit("join-request", { peerId, userName }, (ok) => {
             if (ok) {
                 io.to(this.roomName).emit("new-user", { userId, userName, pp });
 
@@ -133,15 +143,18 @@ class OnlineTeacher {
                     this.participants = this.participants.filter(
                         (p) => p.userId !== userId
                     );
-                    console.log(
-                        "user-disconected: participants => ",
-                        this.participants
-                    );
                     io.to(this.roomName).emit("user-disconnect", userId);
                 });
+                socket.on("quit-class", () => {
+                    this.participants = this.participants.filter(
+                        (p) => p.userId !== userId
+                    );
+                    socket.leave(this.roomName);
+                    io.to(this.roomName).emit("user-disconnect", userId);
+                });
+
                 callBack(this.participants);
             } else callBack(false);
         });
-        console.log("onlineClassesNameSpace : # new-user => " + userName);
     }
 }

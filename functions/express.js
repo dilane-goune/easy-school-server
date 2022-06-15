@@ -4,7 +4,6 @@ const path = require("path");
 const express = require("express");
 
 const { ExpressPeerServer } = require("peer");
-const userAuth = require("../middlewares/userAuth");
 
 // const options = {
 //     key: fs.readFileSync(path.join(process.env.ES_PEM_KEYS, "key.pem")),
@@ -32,16 +31,15 @@ app.use(express.json());
 
 app.use(
     API + "/profile-pictures/",
-    express.static(path.join(process.env.PWD, "/static/profile-pictures"))
+    express.static(path.join(process.env.PWD, "static", "profile-pictures"))
 );
 app.use(
     API + "/documents/",
-    userAuth,
-    express.static(path.join(process.env.PWD, "/static/documents"))
+    express.static(path.join(process.env.PWD, "static", "documents"))
 );
 app.use(
     API + "/registration-files/",
-    express.static(path.join(process.env.PWD, "/static/registrations"))
+    express.static(path.join(process.env.PWD, "static", "registrations"))
 );
 app.use(function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");

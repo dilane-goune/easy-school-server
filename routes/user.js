@@ -80,7 +80,7 @@ module.exports.login = async (req, res) => {
     try {
         let token;
 
-        let user = await userModel.findOne({ email }, { courses: 0, __v: 0 });
+        let user = await userModel.findOne({ email }, { __v: 0 });
         if (user) {
             if (user.suspended) return res.sendStatus(405);
             if (user.password === undefined)
@@ -117,6 +117,20 @@ module.exports.login = async (req, res) => {
                         { name: 1, level: 1 }
                     );
                 }
+
+                const promises = user.courses.map(async (c) => {
+                    const newObject = {};
+                    await classModel
+                        .findById(c.classId, { name: 1, level: 1 })
+                        .then((doc) => {
+                            newObject.className =
+                                doc?.name + " - " + doc?.level;
+                            newObject.classId = c.classId;
+                            newObject.courseCode = c.courseCode;
+                        });
+                    return newObject;
+                });
+                const classCourses = await Promise.all(promises);
                 if (!userClass)
                     return res.status(200).json({
                         user,
@@ -128,6 +142,7 @@ module.exports.login = async (req, res) => {
                         ...user._doc,
                         level: userClass.level,
                         className: userClass.name,
+                        courses: classCourses,
                     },
                     token,
                 });
@@ -1053,6 +1068,7 @@ module.exports.extendToken = (req, res) => {
     });
 };
 
+// time-table
 module.exports.getTimeTableData = async (req, res) => {
     const { classId } = req.params;
 
@@ -1093,7 +1109,7 @@ module.exports.getTimeTableData = async (req, res) => {
         res.json(result);
     } catch (e) {
         console.log(e);
-        res.sendStatus(500);
+        res.json([]);
     }
 };
 
